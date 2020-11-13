@@ -1,39 +1,78 @@
-import { Provider } from 'react-redux';
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { PersistGate } from 'redux-persist/integration/react';
-import { NavigationContainer } from '@react-navigation/native';
-import { colors } from './src/styles';
+import React from "react";
+import { Platform, StatusBar, Image } from "react-native";
+import { AppLoading } from "expo";
+import { Asset } from "expo-asset";
+import { Block, GalioProvider } from "galio-framework";
 
-import { store, persistor } from './src/redux/store';
+import { Images, products, materialTheme } from "./constants/";
 
-import AppView from './src/modules/AppViewContainer';
+import { NavigationContainer } from "@react-navigation/native";
+import Screens from "./navigation/Screens";
 
-export default function App() {
-  return (
-    <Provider store={store}>
-      <NavigationContainer>
-        <PersistGate
-          loading={
-            // eslint-disable-next-line react/jsx-wrap-multilines
-            <View style={styles.container}>
-              <ActivityIndicator color={colors.red} />
-            </View>
-          }
-          persistor={persistor}
-        >
-          <AppView />
-        </PersistGate>
-      </NavigationContainer>
-    </Provider>
-  );
+// Before rendering any navigation stack
+import { enableScreens } from "react-native-screens";
+enableScreens();
+
+// cache app images
+const assetImages = [
+	Images.Pro,
+	Images.Profile,
+	Images.Avatar,
+	Images.Onboarding,
+];
+
+// cache product images
+products.map((product) => assetImages.push(product.image));
+
+function cacheImages(images) {
+	return images.map((image) => {
+		if (typeof image === "string") {
+			return Image.prefetch(image);
+		} else {
+			return Asset.fromModule(image).downloadAsync();
+		}
+	});
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'white',
-  },
-});
+export default class App extends React.Component {
+	state = {
+		isLoadingComplete: false,
+	};
+
+	render() {
+		if (!this.state.isLoadingComplete && !this.props.skipLoadingScreen) {
+			return (
+				<AppLoading
+					startAsync={this._loadResourcesAsync}
+					onError={this._handleLoadingError}
+					onFinish={this._handleFinishLoading}
+				/>
+			);
+		} else {
+			return (
+				<NavigationContainer>
+					<GalioProvider theme={materialTheme}>
+						<Block flex>
+							{Platform.OS === "ios" && <StatusBar barStyle='default' />}
+							<Screens />
+						</Block>
+					</GalioProvider>
+				</NavigationContainer>
+			);
+		}
+	}
+
+	_loadResourcesAsync = async () => {
+		return Promise.all([...cacheImages(assetImages)]);
+	};
+
+	_handleLoadingError = (error) => {
+		// In this case, you might want to report the error to your error
+		// reporting service, for example Sentry
+		console.warn(error);
+	};
+
+	_handleFinishLoading = () => {
+		this.setState({ isLoadingComplete: true });
+	};
+}
